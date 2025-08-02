@@ -65,6 +65,7 @@ const WebRTCPage = () => {
       setMessage(
         "Camera activated successfully! Ready to create or join a room."
       );
+      console.log("Camera started - isStreaming should be true");
     } catch (error) {
       console.error("Error accessing camera:", error);
       let errorMsg = "Camera access denied";
@@ -339,7 +340,7 @@ const WebRTCPage = () => {
                     {connectionState === "connected"
                       ? "Connected"
                       : isStreaming
-                      ? "Ready"
+                      ? `Ready (Streaming: ${isStreaming})`
                       : hasCameraPermission === false
                       ? "No Access"
                       : "Not streaming"}
@@ -376,6 +377,17 @@ const WebRTCPage = () => {
                   />
                 </div>
               )}
+
+              {/* Debug info - remove in production */}
+              <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-4 text-xs">
+                <div>isStreaming: {isStreaming.toString()}</div>
+                <div>isHost: {isHost.toString()}</div>
+                <div>roomId: {roomId || "empty"}</div>
+                <div>
+                  hasCameraPermission:{" "}
+                  {hasCameraPermission?.toString() || "null"}
+                </div>
+              </div>
 
               {/* Controls */}
               <div className="space-y-3">
@@ -417,125 +429,127 @@ const WebRTCPage = () => {
               </div>
             </div>
 
-            {/* Room management */}
-            {isStreaming && (
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Room Management
-                </h3>
+            {/* Room management - Always show for debugging */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Room Management{" "}
+                {isStreaming
+                  ? "(Active)"
+                  : "(Inactive - isStreaming: " + isStreaming + ")"}
+              </h3>
 
-                {/* Show room code prominently when host */}
-                {isHost && roomId && (
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Your Room Code (Share with viewer)
-                    </label>
-                    <div className="bg-green-50 border-2 border-green-200 rounded-lg px-4 py-4 font-mono text-2xl text-center text-green-800 font-bold">
-                      {roomId}
+              {/* Show room code prominently when host */}
+              {isHost && roomId && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Your Room Code (Share with viewer)
+                  </label>
+                  <div className="bg-green-50 border-2 border-green-200 rounded-lg px-4 py-4 font-mono text-2xl text-center text-green-800 font-bold">
+                    {roomId}
+                  </div>
+                  <p className="text-sm text-gray-600 mt-2 text-center">
+                    Share this code with the desktop viewer
+                  </p>
+                </div>
+              )}
+
+              {!isHost && !roomId && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Enter Room Code to Join
+                  </label>
+                  <input
+                    type="text"
+                    value={roomId}
+                    onChange={(e) =>
+                      setRoomId(
+                        e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
+                      )
+                    }
+                    placeholder="Enter 6-digit code"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-2"
+                    maxLength="6"
+                  />
+                  <button
+                    onClick={joinRoom}
+                    disabled={!roomId.trim()}
+                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                  >
+                    Join Room
+                  </button>
+                </div>
+              )}
+
+              {/* Manual signaling for demo purposes */}
+              {isHost && offerData && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Offer Data (Copy to viewer)
+                  </label>
+                  <textarea
+                    value={offerData}
+                    readOnly
+                    className="w-full h-20 border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono"
+                  />
+                </div>
+              )}
+
+              {isHost && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Answer Data (Paste from viewer)
+                  </label>
+                  <textarea
+                    value={answerData}
+                    onChange={(e) => setAnswerData(e.target.value)}
+                    placeholder="Paste answer data here..."
+                    className="w-full h-20 border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono mb-2"
+                  />
+                  <button
+                    onClick={handleAnswer}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                  >
+                    Connect with Answer
+                  </button>
+                </div>
+              )}
+
+              {!isHost && peerConnection && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Offer Data (Paste from host)
+                  </label>
+                  <textarea
+                    value={offerData}
+                    onChange={(e) => setOfferData(e.target.value)}
+                    placeholder="Paste offer data here..."
+                    className="w-full h-20 border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono mb-2"
+                  />
+                  <button
+                    onClick={handleOffer}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors mb-4"
+                  >
+                    Process Offer
+                  </button>
+
+                  {answerData && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Answer Data (Copy to host)
+                      </label>
+                      <textarea
+                        value={answerData}
+                        readOnly
+                        className="w-full h-20 border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono"
+                      />
                     </div>
-                    <p className="text-sm text-gray-600 mt-2 text-center">
-                      Share this code with the desktop viewer
-                    </p>
-                  </div>
-                )}
-
-                {!isHost && !roomId && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Enter Room Code to Join
-                    </label>
-                    <input
-                      type="text"
-                      value={roomId}
-                      onChange={(e) =>
-                        setRoomId(
-                          e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
-                        )
-                      }
-                      placeholder="Enter 6-digit code"
-                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-2"
-                      maxLength="6"
-                    />
-                    <button
-                      onClick={joinRoom}
-                      disabled={!roomId.trim()}
-                      className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                    >
-                      Join Room
-                    </button>
-                  </div>
-                )}
-
-                {/* Manual signaling for demo purposes */}
-                {isHost && offerData && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Offer Data (Copy to viewer)
-                    </label>
-                    <textarea
-                      value={offerData}
-                      readOnly
-                      className="w-full h-20 border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono"
-                    />
-                  </div>
-                )}
-
-                {isHost && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Answer Data (Paste from viewer)
-                    </label>
-                    <textarea
-                      value={answerData}
-                      onChange={(e) => setAnswerData(e.target.value)}
-                      placeholder="Paste answer data here..."
-                      className="w-full h-20 border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono mb-2"
-                    />
-                    <button
-                      onClick={handleAnswer}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                    >
-                      Connect with Answer
-                    </button>
-                  </div>
-                )}
-
-                {!isHost && peerConnection && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Offer Data (Paste from host)
-                    </label>
-                    <textarea
-                      value={offerData}
-                      onChange={(e) => setOfferData(e.target.value)}
-                      placeholder="Paste offer data here..."
-                      className="w-full h-20 border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono mb-2"
-                    />
-                    <button
-                      onClick={handleOffer}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors mb-4"
-                    >
-                      Process Offer
-                    </button>
-
-                    {answerData && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Answer Data (Copy to host)
-                        </label>
-                        <textarea
-                          value={answerData}
-                          readOnly
-                          className="w-full h-20 border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono"
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         ) : (
+          // </div>
           /* Desktop view - viewing interface */
           <div className="space-y-6">
             {/* Room code input */}
