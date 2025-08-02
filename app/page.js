@@ -14,7 +14,7 @@ const WebRTCPage = () => {
   const [message, setMessage] = useState("");
   const [hasCameraPermission, setHasCameraPermission] = useState(null);
 
-  const localVideoRef = useRef(null);
+  const localVideoRef = useRef(null); // For desktop preview
   const remoteVideoRef = useRef(null);
   const peerRef = useRef(null);
 
@@ -50,7 +50,7 @@ const WebRTCPage = () => {
       // Store the stream
       setStream(mediaStream);
 
-      // Set video source
+      // Set video source (only for desktop preview)
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = mediaStream;
         localVideoRef.current.play().catch((err) => {
@@ -321,65 +321,6 @@ const WebRTCPage = () => {
                   {message}
                 </div>
               )}
-
-              {/* Camera preview */}
-              <div className="aspect-video bg-black rounded-lg overflow-hidden mb-4">
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                  onLoadedMetadata={(e) => {
-                    e.target.play().catch((err) => {
-                      console.error("Auto-play failed:", err);
-                    });
-                  }}
-                />
-                {!isStreaming && hasCameraPermission !== false && (
-                  <div className="w-[10px] h-[10px] absolute inset-0 flex items-center justify-center text-white bg-black bg-opacity-50">
-                    <div className="text-center">
-                      <svg
-                        className="w-12 h-12 mx-auto mb-3 opacity-70"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                        />
-                      </svg>
-                      <p>Camera preview will appear here</p>
-                    </div>
-                  </div>
-                )}
-                {hasCameraPermission === false && (
-                  <div className="absolute inset-0 flex items-center justify-center text-white bg-black bg-opacity-75">
-                    <div className="text-center">
-                      <svg
-                        className="w-12 h-12 mx-auto mb-3 text-red-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-                        />
-                      </svg>
-                      <p>Camera access denied</p>
-                      <p className="text-sm opacity-80">
-                        Please check browser permissions
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
 
               {/* Controls */}
               <div className="grid grid-cols-2 gap-4">
