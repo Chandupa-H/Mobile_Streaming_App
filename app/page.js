@@ -34,32 +34,38 @@ const WebRTCPage = () => {
   const startCamera = async () => {
     try {
       setMessage("Requesting camera access...");
+      console.log("Starting camera request...");
 
       const constraints = {
         video: {
-          width: { ideal: 1280, max: 1920 },
-          height: { ideal: 720, max: 1080 },
           facingMode: "user",
-          frameRate: { ideal: 30, max: 60 },
         },
-        audio: true, // Enable audio
+        audio: false, // Disable audio for now to avoid issues
       };
 
+      console.log("Requesting media with constraints:", constraints);
       const mediaStream = await navigator.mediaDevices.getUserMedia(
         constraints
       );
+      console.log("Media stream obtained:", mediaStream);
+
       setStream(mediaStream);
+      console.log("Stream set in state");
 
       // Set video source for mobile preview
       if (localVideoRef.current) {
+        console.log("Setting video source");
         localVideoRef.current.srcObject = mediaStream;
         try {
           await localVideoRef.current.play();
+          console.log("Video playing successfully");
         } catch (err) {
           console.error("Error playing video:", err);
+          // Don't fail the whole process if video preview fails
         }
       }
 
+      console.log("Setting permissions and streaming state");
       setHasCameraPermission(true);
       setIsStreaming(true);
       setMessage(
@@ -75,9 +81,12 @@ const WebRTCPage = () => {
         errorMsg = "No camera found on this device";
       } else if (error.name === "NotReadableError") {
         errorMsg = "Camera is already in use by another application";
+      } else if (error.name === "OverconstrainedError") {
+        errorMsg = "Camera doesn't support the requested settings";
       }
       setMessage(`Error: ${errorMsg}`);
       setHasCameraPermission(false);
+      setIsStreaming(false);
     }
   };
 
@@ -380,13 +389,11 @@ const WebRTCPage = () => {
 
               {/* Debug info - remove in production */}
               <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-4 text-xs">
-                <div>isStreaming: {isStreaming.toString()}</div>
-                <div>isHost: {isHost.toString()}</div>
+                <div>isStreaming: {String(isStreaming)}</div>
+                <div>isHost: {String(isHost)}</div>
                 <div>roomId: {roomId || "empty"}</div>
-                <div>
-                  hasCameraPermission:{" "}
-                  {hasCameraPermission?.toString() || "null"}
-                </div>
+                <div>hasCameraPermission: {String(hasCameraPermission)}</div>
+                <div>stream: {stream ? "exists" : "null"}</div>
               </div>
 
               {/* Controls */}
@@ -549,7 +556,6 @@ const WebRTCPage = () => {
             </div>
           </div>
         ) : (
-          // </div>
           /* Desktop view - viewing interface */
           <div className="space-y-6">
             {/* Room code input */}
