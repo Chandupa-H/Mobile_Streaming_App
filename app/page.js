@@ -378,12 +378,12 @@ const WebRTCPage = () => {
               )}
 
               {/* Controls */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-3">
                 {!isStreaming ? (
                   <button
                     onClick={startCamera}
                     disabled={hasCameraPermission === false}
-                    className={`col-span-2 font-medium py-3 px-4 rounded-lg transition-colors ${
+                    className={`w-full font-medium py-3 px-4 rounded-lg transition-colors ${
                       hasCameraPermission === false
                         ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                         : "bg-blue-600 hover:bg-blue-700 text-white"
@@ -394,17 +394,17 @@ const WebRTCPage = () => {
                       : "Start Camera"}
                   </button>
                 ) : (
-                  <>
+                  <div className="grid grid-cols-2 gap-4">
                     <button
                       onClick={createRoom}
                       disabled={isHost}
                       className={`font-medium py-3 px-4 rounded-lg transition-colors ${
                         isHost
-                          ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                          ? "bg-green-200 text-green-800 cursor-not-allowed"
                           : "bg-green-600 hover:bg-green-700 text-white"
                       }`}
                     >
-                      {isHost ? "Room Created" : "Create Room"}
+                      {isHost ? "✓ Room Created" : "Create Room"}
                     </button>
                     <button
                       onClick={stopStreaming}
@@ -412,7 +412,7 @@ const WebRTCPage = () => {
                     >
                       Stop Camera
                     </button>
-                  </>
+                  </div>
                 )}
               </div>
             </div>
@@ -424,10 +424,25 @@ const WebRTCPage = () => {
                   Room Management
                 </h3>
 
-                {!isHost && (
+                {/* Show room code prominently when host */}
+                {isHost && roomId && (
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Your Room Code (Share with viewer)
+                    </label>
+                    <div className="bg-green-50 border-2 border-green-200 rounded-lg px-4 py-4 font-mono text-2xl text-center text-green-800 font-bold">
+                      {roomId}
+                    </div>
+                    <p className="text-sm text-gray-600 mt-2 text-center">
+                      Share this code with the desktop viewer
+                    </p>
+                  </div>
+                )}
+
+                {!isHost && !roomId && (
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Enter Room Code
+                      Enter Room Code to Join
                     </label>
                     <input
                       type="text"
@@ -443,21 +458,11 @@ const WebRTCPage = () => {
                     />
                     <button
                       onClick={joinRoom}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                      disabled={!roomId.trim()}
+                      className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
                     >
                       Join Room
                     </button>
-                  </div>
-                )}
-
-                {isHost && roomId && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Room Code (Share with viewer)
-                    </label>
-                    <div className="bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 font-mono text-lg text-center">
-                      {roomId}
-                    </div>
                   </div>
                 )}
 
