@@ -12,6 +12,7 @@ const WebRTCPage = () => {
   const [roomId, setRoomId] = useState("");
   const [isHost, setIsHost] = useState(false);
   const [message, setMessage] = useState("");
+  const [hasCameraPermission, setHasCameraPermission] = useState(null);
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -28,44 +29,16 @@ const WebRTCPage = () => {
     setIsMobile(checkMobile());
   }, []);
 
-  // Initialize WebRTC connection
-  const initializePeerConnection = () => {
-    const configuration = {
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" },
-      ],
-    };
-
-    const pc = new RTCPeerConnection(configuration);
-
-    // Handle ICE candidates
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        // In a real app, you would send this candidate to the other peer via a signaling server
-        console.log("ICE candidate:", event.candidate);
-      }
-    };
-
-    // Handle remote stream
-    pc.ontrack = (event) => {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = event.streams[0];
-        setRemoteVideoUrl(URL.createObjectURL(event.streams[0]));
-      }
-    };
-
-    return pc;
-  };
-
-  // Start camera stream
+  // Request camera permissions and start stream
   const startCamera = async () => {
     try {
+      setMessage("Requesting camera access...");
+
       const constraints = {
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          facingMode: "user", // Use 'environment' for back camera
+          facingMode: "user",
         },
         audio: false,
       };
@@ -74,80 +47,40 @@ const WebRTCPage = () => {
         constraints
       );
 
+      // Store the stream
+      setStream(mediaStream);
+
+      // Set video source
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = mediaStream;
-        setLocalVideoUrl(URL.createObjectURL(mediaStream));
+        localVideoRef.current.play().catch((err) => {
+          console.error("Error playing video:", err);
+          setMessage(`Error playing video: ${err.message}`);
+        });
       }
 
-      setStream(mediaStream);
+      setHasCameraPermission(true);
       setIsStreaming(true);
-      setMessage("Camera activated successfully");
-    } catch (error) {
-      console.error("Error accessing camera:", error);
-      setMessage(`Error: ${error.message}`);
-    }
-  };
-
-  // Create a new room (host)
-  const createRoom = async () => {
-    if (!stream) {
-      setMessage("Please start camera first");
-      return;
-    }
-
-    const pc = initializePeerConnection();
-    peerRef.current = pc;
-    setPeerConnection(pc);
-
-    // Add local stream to peer connection
-    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
-    // Create offer
-    try {
-      const offer = await pc.createOffer({
-        offerToReceiveVideo: 1,
-        offerToReceiveAudio: 0,
-      });
-
-      await pc.setLocalDescription(offer);
-
-      // Generate room ID
-      const newRoomId = Math.random()
-        .toString(36)
-        .substring(2, 8)
-        .toUpperCase();
-      setRoomId(newRoomId);
-      setIsHost(true);
-      setIsConnected(true);
       setMessage(
-        "Room created! Share this code with your desktop: " + newRoomId
+        'Camera activated successfully! Tap "Create Room" to start streaming.'
       );
     } catch (error) {
-      console.error("Error creating offer:", error);
-      setMessage(`Error creating room: ${error.message}`);
+      console.error("Error accessing camera:", error);
+      let errorMsg = "Camera access denied";
+      if (error.name === "NotAllowedError") {
+        errorMsg = "Please allow camera access in your browser settings";
+      } else if (error.name === "NotFoundError") {
+        errorMsg = "No camera found on this device";
+      } else if (error.name === "NotReadableError") {
+        errorMsg = "Camera is already in use by another application";
+      }
+      setMessage(`Error: ${errorMsg}`);
+      setHasCameraPermission(false);
     }
   };
 
-  // Join existing room
-  const joinRoom = async () => {
-    if (!stream || !roomId) {
-      setMessage("Please start camera and enter room code");
-      return;
-    }
-
-    const pc = initializePeerConnection();
-    peerRef.current = pc;
-    setPeerConnection(pc);
-
-    // Add local stream to peer connection
-    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
-    setIsConnected(true);
-    setMessage("Connecting to room...");
-  };
-
-  // Stop streaming
-  const stopStreaming = () => {
+  // Cleanup function
+  const cleanup = () => {
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
       setStream(null);
@@ -170,8 +103,111 @@ const WebRTCPage = () => {
     setIsConnected(false);
     setIsHost(false);
     setRoomId("");
-    setMessage("Streaming stopped");
   };
+
+  // Stop streaming
+  const stopStreaming = () => {
+    cleanup();
+    setMessage("Camera stopped");
+  };
+
+  // Create a new room (host)
+  const createRoom = async () => {
+    if (!stream) {
+      setMessage("Please start camera first");
+      return;
+    }
+
+    try {
+      // Initialize peer connection
+      const configuration = {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+        ],
+      };
+
+      const pc = new RTCPeerConnection(configuration);
+      peerRef.current = pc;
+      setPeerConnection(pc);
+
+      // Add local stream to peer connection
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+      // Create offer
+      const offer = await pc.createOffer({
+        offerToReceiveVideo: 1,
+        offerToReceiveAudio: 0,
+      });
+
+      await pc.setLocalDescription(offer);
+
+      // Generate room ID
+      const newRoomId = Math.random()
+        .toString(36)
+        .substring(2, 8)
+        .toUpperCase();
+      setRoomId(newRoomId);
+      setIsHost(true);
+      setIsConnected(true);
+      setMessage(`Room created! Share this code: ${newRoomId}`);
+    } catch (error) {
+      console.error("Error creating room:", error);
+      setMessage(`Error: ${error.message}`);
+      cleanup();
+    }
+  };
+
+  // Join existing room
+  const joinRoom = async () => {
+    if (!stream || !roomId) {
+      setMessage("Please start camera and enter room code");
+      return;
+    }
+
+    try {
+      // Initialize peer connection
+      const configuration = {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+        ],
+      };
+
+      const pc = new RTCPeerConnection(configuration);
+      peerRef.current = pc;
+      setPeerConnection(pc);
+
+      // Add local stream to peer connection
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+      setIsConnected(true);
+      setMessage("Connecting to room...");
+    } catch (error) {
+      console.error("Error joining room:", error);
+      setMessage(`Error: ${error.message}`);
+      cleanup();
+    }
+  };
+
+  // Handle visibility changes
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && stream) {
+        // Pause camera when tab is hidden
+        stream.getTracks().forEach((track) => (track.enabled = false));
+      } else if (stream) {
+        // Resume camera when tab is visible
+        stream.getTracks().forEach((track) => (track.enabled = true));
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      cleanup();
+    };
+  }, [stream]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
@@ -253,11 +289,19 @@ const WebRTCPage = () => {
                 <div className="flex items-center space-x-2">
                   <div
                     className={`w-3 h-3 rounded-full ${
-                      isStreaming ? "bg-green-500" : "bg-gray-300"
+                      isStreaming
+                        ? "bg-green-500"
+                        : hasCameraPermission === false
+                        ? "bg-red-500"
+                        : "bg-gray-300"
                     }`}
                   ></div>
                   <span className="text-sm text-gray-600">
-                    {isStreaming ? "Streaming" : "Not streaming"}
+                    {isStreaming
+                      ? "Streaming"
+                      : hasCameraPermission === false
+                      ? "No Access"
+                      : "Not streaming"}
                   </span>
                 </div>
               </div>
@@ -265,10 +309,12 @@ const WebRTCPage = () => {
               {message && (
                 <div
                   className={`p-3 rounded-lg text-sm mb-4 ${
-                    message.startsWith("Error")
+                    message.includes("Error")
                       ? "bg-red-50 text-red-700"
                       : message.includes("successfully")
                       ? "bg-green-50 text-green-700"
+                      : message.includes("Please allow")
+                      ? "bg-yellow-50 text-yellow-700"
                       : "bg-blue-50 text-blue-700"
                   }`}
                 >
@@ -284,10 +330,53 @@ const WebRTCPage = () => {
                   playsInline
                   muted
                   className="w-full h-full object-cover"
+                  onLoadedMetadata={(e) => {
+                    e.target.play().catch((err) => {
+                      console.error("Auto-play failed:", err);
+                    });
+                  }}
                 />
-                {!isStreaming && (
+                {!isStreaming && hasCameraPermission !== false && (
                   <div className="absolute inset-0 flex items-center justify-center text-white bg-black bg-opacity-50">
-                    <p>Camera preview will appear here</p>
+                    <div className="text-center">
+                      <svg
+                        className="w-12 h-12 mx-auto mb-3 opacity-70"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                        />
+                      </svg>
+                      <p>Camera preview will appear here</p>
+                    </div>
+                  </div>
+                )}
+                {hasCameraPermission === false && (
+                  <div className="absolute inset-0 flex items-center justify-center text-white bg-black bg-opacity-75">
+                    <div className="text-center">
+                      <svg
+                        className="w-12 h-12 mx-auto mb-3 text-red-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                        />
+                      </svg>
+                      <p>Camera access denied</p>
+                      <p className="text-sm opacity-80">
+                        Please check browser permissions
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -297,9 +386,16 @@ const WebRTCPage = () => {
                 {!isStreaming ? (
                   <button
                     onClick={startCamera}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                    disabled={hasCameraPermission === false}
+                    className={`font-medium py-3 px-4 rounded-lg transition-colors ${
+                      hasCameraPermission === false
+                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        : "bg-blue-600 hover:bg-blue-700 text-white"
+                    }`}
                   >
-                    Start Camera
+                    {hasCameraPermission === false
+                      ? "Fix Permissions"
+                      : "Start Camera"}
                   </button>
                 ) : (
                   <button
@@ -347,7 +443,11 @@ const WebRTCPage = () => {
                     <input
                       type="text"
                       value={roomId}
-                      onChange={(e) => setRoomId(e.target.value.toUpperCase())}
+                      onChange={(e) =>
+                        setRoomId(
+                          e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
+                        )
+                      }
                       placeholder="Enter 6-digit code"
                       className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       maxLength="6"
@@ -361,23 +461,6 @@ const WebRTCPage = () => {
                 >
                   Disconnect
                 </button>
-              </div>
-            )}
-
-            {/* Remote stream preview */}
-            {remoteVideoUrl && (
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Desktop View
-                </h3>
-                <div className="aspect-video bg-black rounded-lg overflow-hidden">
-                  <video
-                    ref={remoteVideoRef}
-                    autoPlay
-                    playsInline
-                    className="w-full h-full object-cover"
-                  />
-                </div>
               </div>
             )}
 
