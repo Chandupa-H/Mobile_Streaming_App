@@ -468,14 +468,16 @@ const WebRTCPage = () => {
                   <input
                     type="text"
                     value={roomId}
-                    onChange={(e) =>
-                      setRoomId(
-                        e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
-                      )
-                    }
+                    onChange={(e) => {
+                      const value = e.target.value
+                        .toUpperCase()
+                        .replace(/[^A-Z0-9]/g, "");
+                      console.log("Room ID input changed:", value);
+                      setRoomId(value);
+                    }}
                     placeholder="Enter 6-digit code"
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-2"
-                    maxLength="6"
+                    maxLength={6}
                   />
                   <button
                     onClick={joinRoom}
@@ -570,14 +572,16 @@ const WebRTCPage = () => {
               <input
                 type="text"
                 value={roomId}
-                onChange={(e) =>
-                  setRoomId(
-                    e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
-                  )
-                }
+                onChange={(e) => {
+                  const value = e.target.value
+                    .toUpperCase()
+                    .replace(/[^A-Z0-9]/g, "");
+                  console.log("Desktop room ID input changed:", value);
+                  setRoomId(value);
+                }}
                 placeholder="Enter 6-digit room code"
                 className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
-                maxLength="6"
+                maxLength={6}
               />
               <button
                 onClick={joinRoom}
