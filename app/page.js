@@ -29,7 +29,7 @@ const WebRTCPage = () => {
     setIsMobile(checkMobile());
   }, []);
 
-  // Start camera
+  // Request camera permissions and start stream
   const startCamera = async () => {
     try {
       setMessage("Requesting camera access...");
@@ -54,24 +54,25 @@ const WebRTCPage = () => {
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = mediaStream;
         localVideoRef.current.play().catch((err) => {
-          console.warn("Video autoplay failed:", err);
+          console.error("Error playing video:", err);
+          setMessage(`Error playing video: ${err.message}`);
         });
       }
 
       setHasCameraPermission(true);
-      setIsStreaming(true); // Ensure isStreaming is set to true
+      setIsStreaming(true);
       setMessage(
         'Camera activated successfully! Tap "Create Room" to start streaming.'
       );
-    } catch (err) {
-      console.error("Camera error:", err);
+    } catch (error) {
+      console.error("Error accessing camera:", error);
       let errorMsg = "Camera access denied";
-      if (err.name === "NotAllowedError") {
-        errorMsg = "Please allow camera access in browser settings";
-      } else if (err.name === "NotFoundError") {
-        errorMsg = "No camera found";
-      } else if (err.name === "NotReadableError") {
-        errorMsg = "Camera is already in use by another app";
+      if (error.name === "NotAllowedError") {
+        errorMsg = "Please allow camera access in your browser settings";
+      } else if (error.name === "NotFoundError") {
+        errorMsg = "No camera found on this device";
+      } else if (error.name === "NotReadableError") {
+        errorMsg = "Camera is already in use by another application";
       }
       setMessage(`Error: ${errorMsg}`);
       setHasCameraPermission(false);
@@ -81,15 +82,23 @@ const WebRTCPage = () => {
   // Cleanup function
   const cleanup = () => {
     if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
+      stream.getTracks().forEach((track) => track.stop());
       setStream(null);
     }
+
     if (peerConnection) {
       peerConnection.close();
       setPeerConnection(null);
     }
-    if (localVideoRef.current) localVideoRef.current.srcObject = null;
-    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+    }
+
     setIsStreaming(false);
     setIsConnected(false);
     setIsHost(false);
@@ -99,7 +108,7 @@ const WebRTCPage = () => {
   // Stop streaming
   const stopStreaming = () => {
     cleanup();
-    setMessage("Streaming stopped");
+    setMessage("Camera stopped");
   };
 
   // Create a new room (host)
@@ -110,20 +119,30 @@ const WebRTCPage = () => {
     }
 
     try {
-      const pc = new RTCPeerConnection({
+      // Initialize peer connection
+      const configuration = {
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
           { urls: "stun:stun1.l.google.com:19302" },
         ],
-      });
+      };
+
+      const pc = new RTCPeerConnection(configuration);
       peerRef.current = pc;
       setPeerConnection(pc);
 
+      // Add local stream to peer connection
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-      const offer = await pc.createOffer({ offerToReceiveVideo: 1 });
+      // Create offer
+      const offer = await pc.createOffer({
+        offerToReceiveVideo: 1,
+        offerToReceiveAudio: 0,
+      });
+
       await pc.setLocalDescription(offer);
 
+      // Generate room ID
       const newRoomId = Math.random()
         .toString(36)
         .substring(2, 8)
@@ -132,9 +151,9 @@ const WebRTCPage = () => {
       setIsHost(true);
       setIsConnected(true);
       setMessage(`Room created! Share this code: ${newRoomId}`);
-    } catch (err) {
-      console.error("Create room error:", err);
-      setMessage(`Failed to create room: ${err.message}`);
+    } catch (error) {
+      console.error("Error creating room:", error);
+      setMessage(`Error: ${error.message}`);
       cleanup();
     }
   };
@@ -142,27 +161,31 @@ const WebRTCPage = () => {
   // Join existing room
   const joinRoom = async () => {
     if (!stream || !roomId) {
-      setMessage("Enter a valid room code");
+      setMessage("Please start camera and enter room code");
       return;
     }
 
     try {
-      const pc = new RTCPeerConnection({
+      // Initialize peer connection
+      const configuration = {
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
           { urls: "stun:stun1.l.google.com:19302" },
         ],
-      });
+      };
+
+      const pc = new RTCPeerConnection(configuration);
       peerRef.current = pc;
       setPeerConnection(pc);
 
+      // Add local stream to peer connection
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
       setIsConnected(true);
       setMessage("Connecting to room...");
     } catch (error) {
-      console.error("Join room error:", error);
-      setMessage(`Failed to join room: ${error.message}`);
+      console.error("Error joining room:", error);
+      setMessage(`Error: ${error.message}`);
       cleanup();
     }
   };
@@ -218,7 +241,7 @@ const WebRTCPage = () => {
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         {!isMobile ? (
-          /* Desktop view */
+          /* Desktop view - room joining interface */
           <div className="space-y-6">
             {/* Room code input */}
             <div className="bg-white rounded-xl shadow-lg p-6">
@@ -301,7 +324,7 @@ const WebRTCPage = () => {
             </div>
           </div>
         ) : (
-          /* Mobile view */
+          /* Mobile view - streaming interface */
           <div className="space-y-6">
             {/* Status indicator */}
             <div className="bg-white rounded-xl shadow-lg p-6">
@@ -346,12 +369,12 @@ const WebRTCPage = () => {
               )}
 
               {/* Controls */}
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 {!isStreaming ? (
                   <button
                     onClick={startCamera}
                     disabled={hasCameraPermission === false}
-                    className={`py-3 px-6 font-medium rounded-lg transition-colors ${
+                    className={`font-medium py-3 px-4 rounded-lg transition-colors ${
                       hasCameraPermission === false
                         ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                         : "bg-blue-600 hover:bg-blue-700 text-white"
@@ -364,18 +387,17 @@ const WebRTCPage = () => {
                 ) : (
                   <button
                     onClick={stopStreaming}
-                    className="py-3 px-6 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
+                    className="bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
                   >
                     Stop Camera
                   </button>
                 )}
 
-                {/* Show "Create Room" button only when streaming & not connected */}
+                {/* Show "Create Room" button only when streaming is active and not connected */}
                 {isStreaming && !isConnected && (
                   <button
                     onClick={createRoom}
-                    className="py-3 px-6 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors shadow-md"
-                    style={{ marginTop: "1rem" }}
+                    className="bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
                   >
                     Create Room
                   </button>
@@ -387,16 +409,43 @@ const WebRTCPage = () => {
             {isConnected && (
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  {isHost ? "Your Room Code" : "Connected"}
+                  {isHost ? "Host Controls" : "Connected to Room"}
                 </h3>
+
                 {isHost && (
-                  <div className="bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 font-mono text-lg text-center mb-4">
-                    {roomId}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Room Code (Share with desktop)
+                    </label>
+                    <div className="bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 font-mono text-lg text-center">
+                      {roomId}
+                    </div>
                   </div>
                 )}
+
+                {!isHost && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Enter Room Code
+                    </label>
+                    <input
+                      type="text"
+                      value={roomId}
+                      onChange={(e) =>
+                        setRoomId(
+                          e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
+                        )
+                      }
+                      placeholder="Enter 6-digit code"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      maxLength="6"
+                    />
+                  </div>
+                )}
+
                 <button
                   onClick={stopStreaming}
-                  className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg"
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
                 >
                   Disconnect
                 </button>
@@ -408,20 +457,34 @@ const WebRTCPage = () => {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 How to Use
               </h3>
-              <ol className="text-gray-700 space-y-2">
-                <li>
-                  <strong>1.</strong> Tap <strong>"Start Camera"</strong>
-                </li>
-                <li>
-                  <strong>2.</strong> Tap <strong>"Create Room"</strong>
-                </li>
-                <li>
-                  <strong>3.</strong> Share the room code with desktop
-                </li>
-                <li>
-                  <strong>4.</strong> View stream on desktop app
-                </li>
-              </ol>
+              <div className="space-y-3 text-gray-700">
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-blue-600 text-sm font-bold">1</span>
+                  </div>
+                  <p>
+                    Click "Start Camera" to allow access to your phone's camera
+                  </p>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-blue-600 text-sm font-bold">2</span>
+                  </div>
+                  <p>Click "Create Room" to generate a unique room code</p>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-blue-600 text-sm font-bold">3</span>
+                  </div>
+                  <p>Share the room code with your desktop application</p>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-blue-600 text-sm font-bold">4</span>
+                  </div>
+                  <p>Your desktop will connect and display the camera stream</p>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -429,8 +492,11 @@ const WebRTCPage = () => {
 
       {/* Footer */}
       <div className="bg-white border-t mt-12">
-        <div className="max-w-4xl mx-auto px-4 py-6 text-center text-sm text-gray-600">
-          WebRTC • Peer-to-Peer • No data stored
+        <div className="max-w-4xl mx-auto px-4 py-6 text-center">
+          <p className="text-gray-600 text-sm">
+            Uses WebRTC technology for peer-to-peer streaming • No data stored
+            on servers
+          </p>
         </div>
       </div>
     </div>
