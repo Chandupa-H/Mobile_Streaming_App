@@ -337,7 +337,7 @@ const WebRTCPage = () => {
                   }}
                 />
                 {!isStreaming && hasCameraPermission !== false && (
-                  <div className="absolute inset-0 flex items-center justify-center text-white bg-black bg-opacity-50">
+                  <div className="w-[10px] h-[10px] absolute inset-0 flex items-center justify-center text-white bg-black bg-opacity-50">
                     <div className="text-center">
                       <svg
                         className="w-12 h-12 mx-auto mb-3 opacity-70"
